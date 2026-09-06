@@ -35,6 +35,22 @@ still reflects 2026-08-31's close -- which is why the dashboard's own default
 trade date is set to 2026-08-31, one day earlier than the "Trade Date" field
 printed on this screen.*
 
+This dashboard's own output for the same trade, side by side with the screen
+above so the numbers can be checked directly rather than taken on faith:
+
+![Dashboard KPI output for the same contract](docs/dashboard_kpi_output.png)
+
+These aren't just illustrative numbers -- they're the dashboard's actual
+pre-loaded defaults on page load (Contract panel and Market Data tables), so
+running it yourself with no changes reproduces this exact comparison. Two
+different sources feed those defaults, with two different levels of
+confidence: the CDS spread curve (6M-10Y) is transcribed directly from a real
+Bloomberg CDSW/HP screen for Apple Inc; the OIS/discount curve comes from a
+separate historical dataset whose original vendor isn't confirmed to be
+Bloomberg -- it was only spot-checked once against a live independent source
+(CheckMySwap) for the most recent date, not validated against Bloomberg
+itself.
+
 **What matches:**
 - Par spread: 41.39bp vs. Bloomberg's 41.40bp (0.02bp)
 - Maturity date and full coupon schedule: exact match, after finding and
@@ -77,8 +93,7 @@ dashboard/        Glue layer between the Flask routes and engine/scripts
 app.py            Flask application
 templates/, static/   Dashboard frontend (HTML/CSS/JS, Plotly.js)
 tests/            pytest suite (64 tests)
-data/             Real market data snapshots used by the standard-contract path
-docs/             Reference material (e.g. the Bloomberg CDSW screenshot above)
+docs/             Reference material (Bloomberg screenshot, dashboard output, used above)
 ```
 
 ## Known limitations / possible next steps
@@ -92,3 +107,9 @@ docs/             Reference material (e.g. the Bloomberg CDSW screenshot above)
   source.
 - The 0.58% upfront-payment gap against Bloomberg described above remains
   open.
+- Index CDS (e.g. CDX, iTraxx) pricing: not built. The engine currently only
+  prices single-name CDS -- an index trades against a basket of names under
+  its own conventions (index-level flat spread quoting, basket loss/recovery
+  treatment) that this codebase doesn't yet model. Real historical CDX spread
+  data has already been gathered and would be a natural starting dataset for
+  this.
