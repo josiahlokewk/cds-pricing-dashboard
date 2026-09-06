@@ -1,0 +1,4 @@
+pytest>=7.4
+flask>=3.0
+plotly>=5.20
+openpyxl>=3.1

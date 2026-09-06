@@ -1,0 +1,493 @@
+:root {
+  --bg: #0b0f17;
+  --panel: #131a26;
+  --panel-alt: #0f1520;
+  --grid: #233046;
+  --text: #e6edf7;
+  --text-muted: #8ea0bd;
+  --teal: #4dd6a8;   /* survival curve */
+  --blue: #7aa2ff;   /* discount curve */
+  --coral: #ff6b6b;  /* active/highlighted node, danger */
+  --gold: #f6c453;   /* hazard rate */
+  --lavender: #c792ea;
+  --font: "Segoe UI", Inter, system-ui, -apple-system, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  /* Tells the browser to render native form controls -- including the open
+     dropdown list of a <select>, which CSS can't otherwise restyle -- in dark
+     mode, matching the page instead of the OS default light appearance. This
+     is what was missing: the year/month dropdowns are native <select>
+     elements, and their OPEN list was rendering plain white regardless of
+     the .pika-select rules above, since those only affect the closed control. */
+  color-scheme: dark;
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+h1, h2, h3 { font-weight: 600; margin: 0 0 12px; color: var(--text); }
+h1 { font-size: 20px; }
+h2 { font-size: 15px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+
+.collapsible-header {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  user-select: none;
+}
+.collapsible-header .chevron {
+  color: var(--teal);
+  font-size: 12px;
+  transition: transform 0.15s;
+}
+.collapsible-header .chevron.expanded { transform: rotate(90deg); }
+#market-data-body.collapsed { display: none; }
+
+a { color: var(--blue); }
+
+header.topbar {
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--grid);
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+header.topbar .subtitle { color: var(--text-muted); font-size: 13px; }
+
+.layout {
+  position: relative;
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  gap: 20px;
+  padding: 20px 24px;
+  align-items: start;
+  transition: grid-template-columns 0.15s, margin-right 0.2s;
+}
+/* The math drawer is a fixed overlay (see #math-drawer), so without this the
+   open drawer just covers whatever's underneath instead of making room for
+   itself -- shift the whole page layout left by the drawer's width instead. */
+body.math-open .layout { margin-right: 380px; }
+/* Collapsing to a 0-width grid track (rather than dropping the grid
+   entirely) left panel borders rendering as tiny pill shapes with their
+   content spilling out unclipped -- switching to a plain block layout when
+   collapsed sidesteps that fragile zero-width-track behavior entirely. */
+.layout.sidebar-collapsed { display: block; }
+.layout.sidebar-collapsed #input-column { display: none; }
+
+/* Small edge-attached handle sitting on the seam between the two columns.
+   Fixed to the viewport (not the page) so it stays reachable regardless of
+   scroll position or how tall the panel's content is -- collapses/expands the
+   input panel in place, rather than a text button living far away in the
+   header. */
+#sidebar-toggle {
+  position: fixed;
+  top: 200px;
+  left: 364px;
+  width: 20px;
+  height: 44px;
+  background: var(--panel);
+  border: 1px solid var(--grid);
+  border-left: none;
+  border-radius: 0 8px 8px 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  cursor: pointer;
+  z-index: 5;
+  transition: left 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#sidebar-toggle:hover { color: var(--teal); border-color: var(--teal); }
+.layout.sidebar-collapsed #sidebar-toggle { left: 0; }
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--grid);
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+.panel-alt { background: var(--panel-alt); }
+
+/* --- Contract type toggle --- */
+.toggle-group {
+  display: flex;
+  border: 1px solid var(--grid);
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+.toggle-group button {
+  flex: 1;
+  background: transparent;
+  color: var(--text-muted);
+  border: none;
+  padding: 10px;
+  cursor: pointer;
+  font-family: var(--font);
+  font-size: 13px;
+}
+.toggle-group button.active {
+  background: var(--grid);
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* --- Forms / inputs --- */
+label { display: block; font-size: 12px; color: var(--text-muted); margin: 10px 0 4px; }
+input, select {
+  width: 100%;
+  background: var(--panel-alt);
+  border: 1px solid var(--grid);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 7px 8px;
+  font-family: var(--font);
+  font-size: 13px;
+}
+input:focus, select:focus { outline: 1px solid var(--blue); }
+
+button.primary {
+  width: 100%;
+  margin-top: 16px;
+  background: var(--teal);
+  color: #04140f;
+  border: none;
+  border-radius: 8px;
+  padding: 11px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+}
+button.primary:hover { filter: brightness(1.08); }
+button.primary:disabled { opacity: 0.5; cursor: default; }
+
+/* --- Small editable tables --- */
+table.editable { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 6px; }
+table.editable th {
+  text-align: left;
+  color: var(--text-muted);
+  font-weight: 500;
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--grid);
+}
+table.editable td { padding: 2px 4px; }
+table.editable input { padding: 4px 6px; font-size: 12px; }
+.hint-small { font-size: 11px; margin: 0 0 6px; line-height: 1.5; }
+.row-delete {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+  padding: 4px 6px;
+}
+.row-delete:hover { color: var(--coral); }
+.add-row {
+  background: var(--panel-alt);
+  border: 1px solid var(--grid);
+  color: var(--text-muted);
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  margin-top: 6px;
+  width: 100%;
+}
+.add-row:hover { color: var(--teal); border-color: var(--teal); }
+
+/* --- Speed control --- */
+.speed-panel { padding: 12px 16px; }
+.speed-panel label { margin: 0 0 6px; }
+.speed-row { display: flex; align-items: center; gap: 10px; }
+/* Deliberately plain ltr: the browser fills the track from the value's own
+   min-side up to the thumb, so reversing direction (tried and reverted) also
+   reverses which side looks "filled" -- fighting that looked broken. Instead
+   the slider's raw value is just a left-to-right position; the JS handler
+   inverts it into an actual ms figure, so the fill still grows naturally
+   left-to-right while the low/slow label sits on the left as intended. */
+.speed-row input[type="range"] { flex: 1; accent-color: var(--teal); }
+#speed-label { min-width: 100px; text-align: right; color: var(--text-muted); font-size: 12px; }
+
+/* --- KPI cards --- */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.kpi-card {
+  background: var(--panel);
+  border: 1px solid var(--grid);
+  border-radius: 10px;
+  padding: 14px;
+}
+.kpi-card .label { color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; }
+.kpi-card .value { font-size: 20px; font-weight: 600; margin-top: 4px; }
+.kpi-card .value.positive { color: var(--teal); }
+.kpi-card .value.negative { color: var(--coral); }
+
+.kpi-card.price-card { position: relative; cursor: help; border-color: var(--teal); }
+.kpi-card.price-card .label { display: flex; align-items: center; gap: 5px; }
+.kpi-card.price-card .label .hint-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 13px; height: 13px; border-radius: 50%;
+  border: 1px solid var(--text-muted); font-size: 9px; line-height: 1;
+}
+.kpi-tooltip {
+  display: none;
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 30;
+  width: 300px;
+  background: var(--panel-alt);
+  border: 1px solid var(--teal);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+  padding: 12px 14px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text);
+  white-space: normal;
+  cursor: default;
+}
+.kpi-card.price-card:hover .kpi-tooltip { display: block; }
+.kpi-tooltip .row { display: flex; justify-content: space-between; gap: 10px; }
+.kpi-tooltip .muted { color: var(--text-muted); }
+.kpi-tooltip hr { border: none; border-top: 1px solid var(--grid); margin: 6px 0; }
+.kpi-tooltip .result { font-weight: 600; }
+.kpi-tooltip .result.positive { color: var(--teal); }
+.kpi-tooltip .result.negative { color: var(--coral); }
+
+/* --- Charts --- */
+.chart-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.chart-row > div:first-child { border-right: 1px solid var(--grid); padding-right: 20px; }
+.chart-box { height: 300px; }
+.chart-box.small { height: 150px; margin-bottom: 8px; }
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.stepper button {
+  background: var(--panel-alt);
+  border: 1px solid var(--grid);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-family: var(--font);
+}
+.stepper button:disabled { opacity: 0.4; cursor: default; }
+.stepper .node-label { color: var(--gold); font-weight: 600; }
+
+/* --- Node info panel (Newton-Raphson convergence for the active tenor) --- */
+#node-info {
+  font-size: 12px;
+  color: var(--text-muted);
+  border-top: 1px solid var(--grid);
+  margin-top: 10px;
+  padding-top: 10px;
+}
+#node-info table { width: 100%; border-collapse: collapse; }
+#node-info td { padding: 2px 6px; }
+#node-info .current-iter { color: var(--coral); font-weight: 600; }
+
+/* --- Schedule table --- */
+.schedule-table-wrap { max-height: 420px; overflow-y: auto; }
+table.schedule { width: 100%; border-collapse: collapse; font-size: 12px; }
+table.schedule th {
+  position: sticky; top: 0;
+  background: var(--panel);
+  text-align: left;
+  color: var(--text-muted);
+  font-weight: 500;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--grid);
+}
+table.schedule td { padding: 6px 8px; border-bottom: 1px solid var(--grid); }
+table.schedule tr.past { color: var(--text-muted); }
+table.schedule tr:hover td { background: var(--panel-alt); }
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 12px;
+}
+.pagination button {
+  background: var(--panel-alt);
+  border: 1px solid var(--grid);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-family: var(--font);
+  font-size: 13px;
+}
+.pagination button:disabled { opacity: 0.4; cursor: default; }
+.pagination span { color: var(--text-muted); font-size: 12px; min-width: 90px; text-align: center; }
+
+.hidden { display: none !important; }
+.muted { color: var(--text-muted); }
+
+/* --- Math drawer: fixed-position slide-in panel, deliberately NOT part of the
+   CSS grid (unlike the left sidebar's collapse, which briefly broke panel
+   rendering when a grid track shrank to 0 -- this avoids that class of bug
+   entirely by overlaying instead of participating in the grid). --- */
+#math-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 380px;
+  height: 100vh;
+  background: var(--panel);
+  border-left: 1px solid var(--grid);
+  padding: 20px;
+  overflow-y: auto;
+  transform: translateX(100%);
+  transition: transform 0.2s;
+  z-index: 8;
+}
+#math-drawer.open { transform: translateX(0); }
+#math-drawer h2 { margin-top: 24px; }
+#math-drawer h2:first-child { margin-top: 0; }
+#math-drawer p { font-size: 13px; line-height: 1.6; }
+.math-current {
+  background: var(--panel-alt);
+  border: 1px solid var(--grid);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 8px;
+}
+.math-current strong { color: var(--gold); }
+
+#math-toggle {
+  position: fixed;
+  top: 50%;
+  right: 0;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 44px;
+  background: var(--panel);
+  border: 1px solid var(--grid);
+  border-right: none;
+  border-radius: 8px 0 0 8px;
+  color: var(--text-muted);
+  font-size: 11px;
+  cursor: pointer;
+  z-index: 9;
+  transition: right 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#math-toggle:hover { color: var(--gold); border-color: var(--gold); }
+#math-toggle.open { right: 380px; }
+
+/* --- Custom calendar popup for the trade date field. Built from scratch
+   (no native <select>/<input type=date>) after Pikaday's year/month
+   dropdowns proved impossible to fully re-theme -- native dropdown option
+   lists are rendered by the OS/browser, not fully CSS-controllable, no
+   matter how the closed control or color-scheme is set. Everything here is
+   plain divs/buttons, so there's nothing outside our own CSS's control. --- */
+#std-trade-date { cursor: pointer; }
+.dp-anchor { position: relative; }
+#date-picker-popup {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 4px;
+  z-index: 20;
+  background: var(--panel);
+  border: 1px solid var(--grid);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  padding: 10px;
+  width: 260px;
+  display: none;
+}
+#date-picker-popup.open { display: block; }
+.dp-header { display: flex; align-items: center; justify-content: space-between; gap: 4px; margin-bottom: 8px; }
+.dp-header > button {
+  background: var(--panel-alt);
+  border: 1px solid var(--grid);
+  color: var(--text-muted);
+  border-radius: 4px;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+}
+.dp-header > button:hover { color: var(--teal); border-color: var(--teal); }
+.dp-title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+}
+.dp-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.dp-grid .dp-dow { color: var(--text-muted); font-size: 10px; text-align: center; padding: 4px 0; }
+.dp-grid button.dp-day {
+  background: transparent;
+  border: none;
+  color: var(--text);
+  border-radius: 4px;
+  padding: 6px 0;
+  font-size: 12px;
+  cursor: pointer;
+  font-family: var(--font);
+}
+.dp-grid button.dp-day:hover { background: var(--panel-alt); color: var(--teal); }
+.dp-grid button.dp-day.dp-today { color: var(--gold); font-weight: 600; }
+.dp-grid button.dp-day.dp-selected { background: var(--teal); color: #04140f; }
+.dp-grid button.dp-day.dp-empty { visibility: hidden; cursor: default; }
+
+.dp-title-btn {
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--font);
+  line-height: 20px;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+.dp-title-btn:hover { color: var(--teal); background: var(--panel-alt); }
+.dp-grid-3col { grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.dp-cell {
+  background: var(--panel-alt);
+  border: 1px solid var(--grid);
+  color: var(--text);
+  border-radius: 4px;
+  padding: 10px 0;
+  font-size: 12px;
+  font-family: var(--font);
+  cursor: pointer;
+}
+.dp-cell:hover { color: var(--teal); border-color: var(--teal); }
+.dp-cell.dp-selected { background: var(--teal); color: #04140f; border-color: var(--teal); }

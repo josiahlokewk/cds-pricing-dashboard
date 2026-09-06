@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>CDS Pricing Dashboard</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
+<script>
+  window.MathJax = { tex: { inlineMath: [["\\(", "\\)"]], displayMath: [["\\[", "\\]"]] } };
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<header class="topbar">
+  <h1>CDS Pricing Dashboard</h1>
+  <span class="subtitle">ISDA-aligned hazard-rate bootstrap &amp; CDS pricing engine</span>
+</header>
+
+<button id="math-toggle" title="Show the math">&#10094;</button>
+<div id="math-drawer">
+  <h2>Hazard curve calibration</h2>
+  <p class="muted">Solved by Newton-Raphson root-find, tenor by tenor: the trial hazard
+    rate for each new segment is adjusted until the model's own protection leg
+    exactly matches the market-quoted spread times the risky annuity.</p>
+  <p>\[ V_{\text{prot}}(\lambda) \;-\; S \times \text{RPV01}(\lambda) \;=\; 0 \]</p>
+  <p>\[ V_{\text{prot}} = (1-R)\,\frac{\lambda}{\lambda+r}\Big[Z(t_1)Q(t_1) - Z(t_2)Q(t_2)\Big] \]</p>
+  <p>\[ Q(t) = \exp\!\left(-\int_0^t \lambda(u)\,du\right) \]</p>
+  <div id="hazard-math-current" class="math-current">Price a contract to see this fill in.</div>
+
+  <h2>Discount curve calibration</h2>
+  <p class="muted">Solved directly, no iteration: the new discount factor appears
+    only once, to the first power, in the OIS swap's own par condition -- given
+    the quoted par rate and every shorter discount factor already solved, plain
+    algebra gives the answer.</p>
+  <p>\[ C \sum_i Z(t_i)\,\delta_i \;=\; 1 - Z(T) \]</p>
+  <div id="discount-math-current" class="math-current">Price a contract to see this fill in.</div>
+</div>
+
+<div class="layout">
+
+  <button id="sidebar-toggle" title="Collapse panel">&#10094;</button>
+
+  <!-- ==================== LEFT: INPUTS ==================== -->
+  <div id="input-column">
+
+    <div class="panel">
+      <h2>Contract</h2>
+
+      <div id="standard-params">
+        <label>Trade date</label>
+        <div class="dp-anchor">
+          <input type="text" id="std-trade-date" value="{{ default_params.standard.trade_date }}" autocomplete="off" readonly>
+          <div id="date-picker-popup"></div>
+        </div>
+        <label>Tenor (years)</label>
+        <input type="number" id="std-tenor-years" step="0.5" value="{{ default_params.standard.tenor_years }}">
+        <label>Fixed coupon (bp)</label>
+        <input type="number" id="std-coupon-bp" step="1" value="{{ default_params.standard.coupon_bp }}">
+        <label>Recovery</label>
+        <input type="number" id="std-recovery" step="0.01" value="{{ default_params.standard.recovery }}">
+        <label>Notional ($)</label>
+        <input type="number" id="std-notional" step="1000" value="{{ default_params.standard.notional }}">
+      </div>
+
+      <label>Calibration recovery (used for the market curve instruments)</label>
+      <input type="number" id="calibration-recovery" step="0.01"
+             value="{{ default_params.standard.calibration_recovery }}">
+    </div>
+
+    <div class="panel">
+      <h2 class="collapsible-header" id="market-data-header">
+        Market data <span class="chevron" id="market-data-chevron">&#9656;</span>
+      </h2>
+      <div id="market-data-body" class="collapsed">
+        <div class="toggle-group" id="market-data-toggle">
+          <button type="button" data-table="ois" class="active">OIS Curve</button>
+          <button type="button" data-table="cds">CDS Spread Curve</button>
+        </div>
+
+        <div id="ois-table-wrap">
+          <p class="muted hint-small">No quote for a tenor? Delete its row -- don't enter 0, that's
+            read as a real market quote and will silently corrupt the curve.</p>
+          <table class="editable" id="ois-table">
+            <thead><tr><th>Years</th><th>Rate</th><th></th></tr></thead>
+            <tbody>
+            {% for row in default_ois_curve %}
+              <tr><td><input type="number" step="0.01" class="ois-years" value="{{ row.years }}"></td>
+                  <td><input type="number" step="0.0001" class="ois-rate" value="{{ row.rate }}"></td>
+                  <td><button type="button" class="row-delete">&times;</button></td></tr>
+            {% endfor %}
+            </tbody>
+          </table>
+          <button type="button" class="add-row" id="ois-add-row">+ Add row</button>
+        </div>
+
+        <div id="cds-table-wrap" class="hidden">
+          <p class="muted hint-small">No quote for a tenor? Delete its row -- don't enter 0, that's
+            read as a real market quote and will silently corrupt the curve.</p>
+          <table class="editable" id="cds-table">
+            <thead><tr><th>Tenor</th><th>Years</th><th>Spread (bp)</th><th></th></tr></thead>
+            <tbody>
+            {% for row in default_cds_curve %}
+              <tr><td><input type="text" class="cds-tenor" value="{{ row.tenor }}"></td>
+                  <td><input type="number" step="0.5" class="cds-years" value="{{ row.years }}"></td>
+                  <td><input type="number" step="0.01" class="cds-spread" value="{{ row.spread_bp }}"></td>
+                  <td><button type="button" class="row-delete">&times;</button></td></tr>
+            {% endfor %}
+            </tbody>
+          </table>
+          <button type="button" class="add-row" id="cds-add-row">+ Add row</button>
+        </div>
+      </div>
+    </div>
+
+    <button class="primary" id="price-btn">Price</button>
+  </div>
+
+  <!-- ==================== RIGHT: RESULTS ==================== -->
+  <div id="results-column">
+
+    <div class="kpi-grid" id="kpi-grid"><!-- populated by JS --></div>
+
+    <div class="panel speed-panel">
+      <label for="speed-slider">Build speed (both curves)</label>
+      <div class="speed-row">
+        <span class="muted">Slow</span>
+        <input type="range" id="speed-slider" min="200" max="2000" step="100" value="1200">
+        <span class="muted">Fast</span>
+        <span id="speed-label">1000ms / node</span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="chart-row">
+        <div>
+          <h2>Survival / hazard curve (node-by-node)</h2>
+          <div class="stepper">
+            <button id="step-prev">&larr; Prev</button>
+            <span class="node-label" id="step-label">-</span>
+            <button id="step-next">Next &rarr;</button>
+            <button id="step-play">&#9654; Play</button>
+            <button id="step-reset">&#8634; Reset</button>
+            <button id="step-replay" disabled title="Available once the animation reaches the end">&#8635; Replay</button>
+          </div>
+          <div class="chart-box small" id="spread-input-chart"></div>
+          <div class="chart-box small" id="hazard-chart"></div>
+          <div class="chart-box" id="survival-chart"></div>
+          <div id="node-info"></div>
+        </div>
+        <div>
+          <h2>Discount curve (node-by-node)</h2>
+          <div class="stepper">
+            <button id="dstep-prev">&larr; Prev</button>
+            <span class="node-label" id="dstep-label">-</span>
+            <button id="dstep-next">Next &rarr;</button>
+            <button id="dstep-play">&#9654; Play</button>
+            <button id="dstep-reset">&#8634; Reset</button>
+            <button id="dstep-replay" disabled title="Available once the animation reaches the end">&#8635; Replay</button>
+          </div>
+          <div class="chart-box" id="discount-chart"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Scheduled payment dates</h2>
+      <div class="schedule-table-wrap">
+        <table class="schedule" id="schedule-table">
+          <thead><tr id="schedule-head"></tr></thead>
+          <tbody id="schedule-body"></tbody>
+        </table>
+      </div>
+      <div class="pagination">
+        <button id="schedule-first" title="First page">&laquo;</button>
+        <button id="schedule-prev" title="Previous page">&lsaquo;</button>
+        <span id="schedule-page-label">-</span>
+        <button id="schedule-next" title="Next page">&rsaquo;</button>
+        <button id="schedule-last" title="Last page">&raquo;</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
