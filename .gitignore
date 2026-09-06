@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.DS_Store
+venv/
+.venv/
+*.egg-info/
+
+# Kept locally for reference (provenance of the hardcoded market-data
+# constants in scripts/standard_contract.py) but deliberately not uploaded
+# to GitHub -- nothing in the codebase reads these files at runtime.
+data/
